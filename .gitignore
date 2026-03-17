@@ -1,0 +1,13 @@
+# Build artifacts
+/breakreminder
+/BreakReminder.app/
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+# Claude
+.claude/

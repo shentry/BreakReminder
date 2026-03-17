@@ -1,0 +1,6 @@
+[Details]
+  Icon = "assets/icon.png"
+  Name = "BreakReminder"
+  ID = "com.zhangxinyu.breakreminder"
+  Version = "1.0.0"
+  Build = 1
