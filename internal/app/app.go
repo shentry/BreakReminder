@@ -46,7 +46,7 @@ func New(fyneApp fyne.App) *App {
 
 	a.timer = timer.New(cfg.IntervalMinutes)
 	a.tray = tray.New(fyneApp)
-	a.notifier = notification.New(fyneApp, cfg.NotificationStyle, a.showBreakPopup)
+	a.notifier = notification.New(cfg.NotificationStyle, a.showBreakPopup)
 
 	a.breakWin = ui.NewBreakWindow(fyneApp, a.onBreakFinished)
 	a.settingsWin = ui.NewSettingsWindow(fyneApp, cfg, a.onSettingsSaved)
@@ -80,6 +80,7 @@ func New(fyneApp fyne.App) *App {
 
 func (a *App) Run() {
 	a.tray.Setup()
+	hideDock()
 
 	a.powerWatcher = power.NewWatcher()
 	go func() {
@@ -151,6 +152,9 @@ func (a *App) onSkip() {
 	a.timer.Stop()
 	activity := activities.Random()
 	a.notifier.Notify(activity)
+	if a.cfg.NotificationStyle == config.NotifySystem {
+		a.timer.Reset()
+	}
 }
 
 func (a *App) onSettingsOpen() {

@@ -63,7 +63,7 @@ func (bw *BreakWindow) Show(activity activities.Activity, durationSec int) {
 	activityCard := MakeCard(container.NewVBox(
 		container.NewCenter(badge),
 		container.NewCenter(titleText),
-		container.NewCenter(descText),
+		descText,
 	))
 
 	// Countdown
