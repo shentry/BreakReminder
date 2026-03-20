@@ -2,4 +2,5 @@
 
 package app
 
-func hideDock() {}
+func hideDock()    {}
+func activateApp() {}

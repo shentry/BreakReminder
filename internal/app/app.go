@@ -1,6 +1,7 @@
 package app
 
 import (
+	"sync"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -31,6 +32,8 @@ type App struct {
 	settingsWin  *ui.SettingsWindow
 	pauseReasons PauseReason
 	powerWatcher *power.Watcher
+	breakTimerMu sync.Mutex
+	breakTimer   *time.Timer
 }
 
 func New(fyneApp fyne.App) *App {
@@ -46,7 +49,7 @@ func New(fyneApp fyne.App) *App {
 
 	a.timer = timer.New(cfg.IntervalMinutes)
 	a.tray = tray.New(fyneApp)
-	a.notifier = notification.New(cfg.NotificationStyle, a.showBreakPopup)
+	a.notifier = notification.New(cfg.NotificationStyle, a.sendSystemNotification, a.showBreakPopup)
 
 	a.breakWin = ui.NewBreakWindow(fyneApp, a.onBreakFinished)
 	a.settingsWin = ui.NewSettingsWindow(fyneApp, cfg, a.onSettingsSaved)
@@ -59,11 +62,7 @@ func New(fyneApp fyne.App) *App {
 	}
 	a.timer.OnExpired = func() {
 		fyne.Do(func() {
-			activity := activities.Random()
-			a.notifier.Notify(activity)
-			if a.cfg.NotificationStyle == config.NotifySystem {
-				a.timer.Reset()
-			}
+			a.startBreak(activities.Random())
 		})
 	}
 
@@ -128,11 +127,54 @@ func (a *App) setPauseReason(reason PauseReason, active bool) {
 	}
 }
 
+func (a *App) sendSystemNotification(title, body string) {
+	if a.fyneApp != nil {
+		a.fyneApp.SendNotification(fyne.NewNotification(title, body))
+	}
+}
+
 func (a *App) showBreakPopup(activity activities.Activity) {
+	activateApp()
 	a.breakWin.Show(activity, a.cfg.BreakDurationSec)
 }
 
+func (a *App) startBreak(activity activities.Activity) {
+	a.notifier.Notify(activity)
+	if a.cfg.NotificationStyle == config.NotifySystem {
+		a.scheduleSystemBreakEnd()
+	}
+}
+
+func (a *App) scheduleSystemBreakEnd() {
+	duration := time.Duration(a.cfg.BreakDurationSec) * time.Second
+	if duration <= 0 {
+		a.onBreakFinished()
+		return
+	}
+
+	a.breakTimerMu.Lock()
+	if a.breakTimer != nil {
+		a.breakTimer.Stop()
+	}
+	a.breakTimer = time.AfterFunc(duration, func() {
+		fyne.Do(func() {
+			a.onBreakFinished()
+		})
+	})
+	a.breakTimerMu.Unlock()
+}
+
+func (a *App) clearBreakTimer() {
+	a.breakTimerMu.Lock()
+	defer a.breakTimerMu.Unlock()
+	if a.breakTimer != nil {
+		a.breakTimer.Stop()
+		a.breakTimer = nil
+	}
+}
+
 func (a *App) onBreakFinished() {
+	a.clearBreakTimer()
 	a.timer.Reset()
 	if a.pauseReasons != 0 {
 		a.timer.Pause()
@@ -150,11 +192,9 @@ func (a *App) onPauseResume() {
 
 func (a *App) onSkip() {
 	a.timer.Stop()
-	activity := activities.Random()
-	a.notifier.Notify(activity)
-	if a.cfg.NotificationStyle == config.NotifySystem {
-		a.timer.Reset()
-	}
+	fyne.Do(func() {
+		a.startBreak(activities.Random())
+	})
 }
 
 func (a *App) onSettingsOpen() {
@@ -177,6 +217,7 @@ func (a *App) onSettingsSaved(cfg config.Config) {
 }
 
 func (a *App) onQuit() {
+	a.clearBreakTimer()
 	if a.powerWatcher != nil {
 		a.powerWatcher.Stop()
 	}
